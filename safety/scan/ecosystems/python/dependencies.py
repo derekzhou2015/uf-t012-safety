@@ -291,6 +291,10 @@ def read_virtual_environment_dependencies(
         dep_name, dep_version = dist_info_folder.name.replace(".dist-info", "").split(
             "-"
         )
+        # Normalize the name read from the dist-info folder so environment scans
+        # share the same canonicalization as the manifest parsing pipeline. DB
+        # keys and vulnerability lookups use PEP 503 normalized names.
+        dep_name = canonicalize_name(dep_name)
 
         yield PythonDependency(
             name=dep_name,

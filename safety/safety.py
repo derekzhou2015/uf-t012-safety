@@ -941,7 +941,9 @@ def compute_sec_ver_for_user(
     versions = package.get_versions(db_full)
     affected_versions = []
 
-    for vuln in db_full.get("vulnerable_packages", {}).get(package.name, []):
+    for vuln in db_full.get("vulnerable_packages", {}).get(
+        canonicalize_name(package.name), []
+    ):
         vuln_id: str = str(
             next(
                 filter(lambda i: i.get("type", None) == "pyup", vuln.get("ids", []))
@@ -1971,11 +1973,18 @@ def get_packages(
 
         location = get_distribution_location(d)
 
+        # Normalize the distribution name so environment scans use the same
+        # PEP 503 canonical spelling as the manifest parsing pipeline and the
+        # vulnerability database keys.
+        canonical_name = canonicalize_name(name)
+
         packages.append(
             Package(
-                name=name,
+                name=canonical_name,
                 version=version,
-                requirements=[SafetyRequirement(f"{name}=={version}", found=location)],
+                requirements=[
+                    SafetyRequirement(f"{canonical_name}=={version}", found=location)
+                ],
                 found=location,
                 insecure_versions=[],
                 secure_versions=[],

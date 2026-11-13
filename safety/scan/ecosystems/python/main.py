@@ -475,9 +475,26 @@ class PythonFile(InspectableFile, Remediable):
             secure_vulns_by_user = set()
 
         versions = dependency.get_versions(db_full)
+        if not versions:
+            # The external schema's get_versions looks up meta.packages by the
+            # raw dependency name. Fall back to a canonicalized lookup so a
+            # non-canonical name still resolves to the package version set.
+            pkg_meta = (
+                db_full.get("meta", {})
+                .get("packages", {})
+                .get(canonicalize_name(dependency.name), {})
+            )
+            versions = set(
+                dependency.filter_by_supported_versions(
+                    pkg_meta.get("insecure_versions", [])
+                    + pkg_meta.get("secure_versions", [])
+                )
+            )
         affected_versions = []
 
-        for vuln in db_full.get("vulnerable_packages", {}).get(dependency.name, []):
+        for vuln in db_full.get("vulnerable_packages", {}).get(
+            canonicalize_name(dependency.name), []
+        ):
             vuln_id: str = str(
                 next(
                     filter(lambda i: i.get("type", None) == "pyup", vuln.get("ids", []))
@@ -509,7 +526,16 @@ class PythonFile(InspectableFile, Remediable):
             if not secure_versions:
                 secure_versions = []
 
-            secure_vulns_by_user = set(self.dependency_results.ignored_vulns.keys())
+            # Only the vulnerabilities ignored on this dependency influence its
+            # remediation. An ignore for one vulnerability (or another package)
+            # must not drop the remediation advice for the remaining
+            # vulnerabilities of the same package.
+            secure_vulns_by_user = {
+                vuln.vulnerability_id
+                for specification in dependency.specifications
+                for vuln in specification.vulnerabilities
+                if vuln.ignored
+            }
             if not secure_vulns_by_user:
                 secure_v = sorted(
                     secure_versions, key=lambda ver: parse_version(ver), reverse=True

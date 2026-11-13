@@ -217,7 +217,11 @@ class Package(DictConverter):
         Returns:
             Set[str]: The set of versions.
         """
-        pkg_meta = db_full.get("meta", {}).get("packages", {}).get(self.name, {})
+        pkg_meta = (
+            db_full.get("meta", {})
+            .get("packages", {})
+            .get(canonicalize_name(self.name), {})
+        )
         versions = self.filter_by_supported_versions(
             pkg_meta.get("insecure_versions", []) + pkg_meta.get("secure_versions", [])
         )
